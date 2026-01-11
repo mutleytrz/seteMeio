@@ -6,10 +6,10 @@ admin.initializeApp();
 const db = admin.firestore();
 
 // CONFIGURAÇÃO MERCADO PAGO
-// Master 0: Aqui você colará seu token depois
-mercadopago.configurations.setAccessToken("SEU_ACCESS_TOKEN_AQUI");
+// Master 0: Substitua pelo seu Access Token real quando tiver
+mercadopago.configurations.setAccessToken("APP_USR-8733973950669281-011116-24e03d40f2b3226a454d3e232938f32c-250319792354");
 
-// 1. FUNÇÃO QUE O APP CHAMA PARA COMPRAR
+// 1. FUNÇÃO QUE O APP CHAMA PARA COMPRAR (VIA RENDER)
 exports.criarCheckout = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Precisa estar logado.');
@@ -27,7 +27,7 @@ exports.criarCheckout = functions.https.onCall(async (data, context) => {
       user_id: userId, 
       valor_fichas: amount * 10 
     },
-    notification_url: "https://us-central1-master0casino.cloudfunctions.net/webhookPagamento", 
+    notification_url: "https://setemeio.onrender.com/webhook", 
     back_urls: {
       success: "https://master0casino.web.app/sucesso",
     },
@@ -38,18 +38,16 @@ exports.criarCheckout = functions.https.onCall(async (data, context) => {
     const res = await mercadopago.preferences.create(preference);
     return { init_point: res.body.init_point };
   } catch (error) {
+    console.error("Erro MP:", error);
     throw new functions.https.HttpsError('internal', "Erro no Mercado Pago.");
   }
 });
 
-// 2. FUNÇÃO QUE RECEBE O AVISO DO BANCO (WEBHOOK)
+// 2. WEBHOOK ATUALIZADO PARA O NOVO SISTEMA
 exports.webhookPagamento = functions.https.onRequest(async (req, res) => {
-  const { query } = req;
-  const topic = query.topic || query.type;
+  const paymentId = req.query['data.id'] || req.query.id;
 
-  if (topic === 'payment') {
-    const paymentId = query.id || query['data.id'];
-    
+  if (paymentId) {
     try {
       const paymentInfo = await mercadopago.payment.findById(paymentId);
       
@@ -57,16 +55,15 @@ exports.webhookPagamento = functions.https.onRequest(async (req, res) => {
         const uid = paymentInfo.body.metadata.user_id;
         const fichasGanhas = paymentInfo.body.metadata.valor_fichas;
 
-        // Adiciona as fichas automaticamente ao jogador
-        const userRef = db.collection('jogadores').doc(uid);
+        const userRef = db.collection('users').doc(uid); // Ajustado para sua coleção 'users'
         await userRef.update({
-          fichas: admin.firestore.FieldValue.increment(fichasGanhas)
+          balance: admin.firestore.FieldValue.increment(fichasGanhas)
         });
         
-        console.log(`✅ Pagamento aprovado: ${fichasGanhas} fichas para ${uid}`);
+        console.log(`✅ Sucesso: ${fichasGanhas} fichas para ${uid}`);
       }
     } catch (e) {
-      console.error("Erro Webhook:", e);
+      console.error("Erro no Webhook:", e);
     }
   }
   res.status(200).send("OK");

@@ -1,15 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Dimensions, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-
-// --- CONEXÃO FIREBASE ---
-import { createUserWithEmailAndPassword, onAuthStateChanged, sendEmailVerification, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { addDoc, collection, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../../firebaseConfig';
+import { Animated, Dimensions, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
 
 // --- COMPONENTE CARTA ---
-const CartaMaster = ({ valor, isOculta = false }) => {
+const CartaMaster = ({ valor, isOculta = false }: any) => {
   const anim = useRef(new Animated.Value(0)).current;
   const floatAnim = useRef(new Animated.Value(0)).current;
   const naipes = [{ s: '♥', c: '#ff4d4d' }, { s: '♦', c: '#ff4d4d' }, { s: '♣', c: '#222' }, { s: '♠', c: '#222' }];
@@ -52,7 +47,7 @@ const CartaMaster = ({ valor, isOculta = false }) => {
 };
 
 // --- REAÇÃO ---
-const ReacaoTexto = ({ texto, cor = '#ffd700' }) => {
+const ReacaoTexto = ({ texto, cor = '#ffd700' }: any) => {
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.sequence([
@@ -74,7 +69,7 @@ const ReacaoTexto = ({ texto, cor = '#ffd700' }) => {
   );
 };
 
-const JackpotDisplay = ({ valor, progresso }) => {
+const JackpotDisplay = ({ valor, progresso }: any) => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     Animated.loop(
@@ -99,26 +94,15 @@ const JackpotDisplay = ({ valor, progresso }) => {
 };
 
 export default function HomeScreen() {
-  // --- ESTADOS DO USUÁRIO ---
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [authLoading, setAuthLoading] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [cpf, setCpf] = useState('');
-  const [endereco, setEndereco] = useState('');
-  const [isLogin, setIsLogin] = useState(true);
-  const [fichas, setFichas] = useState(0);
-
-  // --- ESTADOS DO JOGO ---
   const [jogador, setJogador] = useState(0);
-  const [maoJogador, setMaoJogador] = useState([]); 
+  const [maoJogador, setMaoJogador] = useState<any[]>([]); 
   const [banca, setBanca] = useState(0);
-  const [maoBanca, setMaoBanca] = useState([]); 
+  const [maoBanca, setMaoBanca] = useState<any[]>([]); 
   const [resultado, setResultado] = useState('');
-  const [reacao, setReacao] = useState(null);
+  const [reacao, setReacao] = useState<any>(null);
   const [fim, setFim] = useState(false);
-  const [aposta, setAposta] = useState(null);
+  const [fichas, setFichas] = useState(1000);
+  const [aposta, setAposta] = useState<number | null>(null);
   const [valorLivre, setValorLivre] = useState('');
   const [primeiraCartaDistribuida, setPrimeiraCartaDistribuida] = useState(false);
   const [valorAumento, setValorAumento] = useState('');
@@ -128,115 +112,50 @@ export default function HomeScreen() {
   const [progressoJackpot, setProgressoJackpot] = useState(0);
   const [mostrarLoja, setMostrarLoja] = useState(false);
 
-  const monteRef = useRef([]);
+  const monteRef = useRef<number[]>([]);
 
-  // --- MONITOR DE AUTENTICAÇÃO ---
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      if (u) {
-        await u.reload();
-        if (u.emailVerified) {
-          const docRef = doc(db, "jogadores", u.uid);
-          const snap = await getDoc(docRef);
-          if (snap.exists()) setFichas(snap.data().fichas);
-          setUser(u);
-        } else { setUser(null); }
-      } else { setUser(null); }
-      setLoading(false);
-    });
-    return unsub;
-  }, []);
-
-  const atualizarSaldoRemoto = async (novoSaldo) => {
-    if (user) {
-      const docRef = doc(db, "jogadores", user.uid);
-      await updateDoc(docRef, { fichas: novoSaldo });
-      setFichas(novoSaldo);
-    }
-  };
-
-  const comprarCreditos = async (valorReais) => {
-    if (!user) return;
-    const fichasCompradas = valorReais * 10; // R$ 10,00 = 100 fichas
-    const novoSaldo = fichas + fichasCompradas;
-    
-    try {
-      // Simula a transação e atualiza o banco
-      await atualizarSaldoRemoto(novoSaldo);
-      // Registra a compra na coleção "vendas" para controle do Master 0
-      await addDoc(collection(db, "vendas"), {
-        userId: user.uid,
-        email: user.email,
-        valor: valorReais,
-        data: new Date().toISOString()
-      });
-      
-      Alert.alert("DEPÓSITO REALIZADO", `Você comprou R$ ${valorReais},00 em créditos!`);
-      setMostrarLoja(false);
-    } catch (e) {
-      Alert.alert("Erro no pagamento", "Não foi possível processar a compra.");
-    }
-  };
-
-  const handleAuth = async () => {
-    if (!email || !password) return;
-    setAuthLoading(true);
-    try {
-      if (isLogin) {
-        const res = await signInWithEmailAndPassword(auth, email, password);
-        await res.user.reload();
-        if (res.user.emailVerified) setUser(res.user);
-        else alert("Verifique seu e-mail!");
-      } else {
-        const res = await createUserWithEmailAndPassword(auth, email, password);
-        await sendEmailVerification(res.user);
-        await setDoc(doc(db, "jogadores", res.user.uid), { email, cpf, endereco, fichas: 1000 });
-        alert("E-mail enviado! Verifique sua caixa de entrada.");
-        setIsLogin(true);
-      }
-    } catch (e: any) { alert(e.message); }
-    setAuthLoading(false);
-  };
-
-  // --- LÓGICA DO JOGO ---
-  const dispararReacao = (msg, cor = '#ffd700') => {
+  const dispararReacao = (msg: string, cor: string = '#ffd700') => {
     setReacao({ msg, cor });
     setTimeout(() => setReacao(null), 2500);
   };
 
   function tirarCarta() {
     if (monteRef.current.length < 10) {
-      let novo = [];
+      let novo: number[] = [];
       const cartasBase = [1, 2, 3, 4, 5, 6, 7];
       cartasBase.forEach(c => { for (let j = 0; j < 8; j++) novo.push(c); });
       for (let j = 0; j < 24; j++) novo.push(0.5); 
       monteRef.current = novo.sort(() => Math.random() - 0.5);
     }
-    return monteRef.current.pop();
+    return monteRef.current.pop() ?? 0.5;
   }
 
-  const handleApostaLivreChange = (txt) => {
+  const handleApostaLivreChange = (txt: string) => {
     const val = Number(txt.replace(/[^0-9]/g, ''));
     if (val <= fichas) setValorLivre(val.toString());
   };
 
-  async function validarEApostar(valor) {
+  const handleAumentoChange = (txt: string) => {
+    const val = Number(txt.replace(/[^0-9]/g, ''));
+    if (val <= fichas) setValorAumento(val.toString());
+  };
+
+  function validarEApostar(valor: number) {
     if (fim || aposta !== null || valor <= 0 || valor > fichas) return;
-    const novo = fichas - valor;
-    await atualizarSaldoRemoto(novo);
+    setFichas(f => f - valor);
     setAposta(valor);
     dispararReacao(`APOSTA: $${valor}`, '#0f0');
   }
 
-  async function allIn() {
+  function allIn() {
     if (fichas <= 0) return;
     const total = fichas;
     if (aposta === null) {
       setAposta(total);
-      await atualizarSaldoRemoto(0);
+      setFichas(0);
     } else {
-      setAposta(aposta + total);
-      await atualizarSaldoRemoto(0);
+      setAposta((aposta || 0) + total);
+      setFichas(0);
       setBloqueioCompra(true);
     }
     dispararReacao("ALL IN! 🔥", '#ffd700');
@@ -250,7 +169,17 @@ export default function HomeScreen() {
     setPrimeiraCartaDistribuida(true);
   }
 
-  async function comprarCartaJogador() {
+  function aumentarAposta() {
+    const v = Number(valorAumento);
+    if (isNaN(v) || v <= 0 || v > fichas || aposta === null) return;
+    setAposta(aposta + v);
+    setFichas(fichas - v);
+    setValorAumento('');
+    setBloqueioCompra(true);
+    dispararReacao("BLEFOU!", '#ff4d4d');
+  }
+
+  function comprarCartaJogador() {
     if (fim || aposta === null || aposta <= 0 || bancaJogando || bloqueioCompra) return;
     const carta = tirarCarta();
     const novaMao = [...maoJogador, carta];
@@ -264,18 +193,18 @@ export default function HomeScreen() {
         const isOriginal = novaMao.length === 2 && novaMao.includes(7) && novaMao.includes(0.5);
         if (isOriginal) {
           if (progressoJackpot + 1 === 3) {
-            await atualizarSaldoRemoto(fichas + (aposta * 4) + jackpot);
+            setFichas(f => f + (aposta * 4) + jackpot);
             setJackpot(100); setProgressoJackpot(0);
             setResultado('🏆 JACKPOT MASTER!');
             dispararReacao("💰 JACKPOT!! 💰", '#ffd700');
           } else {
             setProgressoJackpot(p => p + 1);
-            await atualizarSaldoRemoto(fichas + aposta * 4);
+            setFichas(f => f + aposta * 4);
             setResultado('🃏 7.5 ORIGINAL!');
             dispararReacao("7.5 ORIGINAL!", '#d4af37');
           }
         } else {
-          await atualizarSaldoRemoto(fichas + aposta * 3);
+          setFichas(f => f + aposta * 3);
           setResultado('🎯 7.5 EXATO!');
           dispararReacao("PERFEITO!", '#007bff');
         }
@@ -290,7 +219,8 @@ export default function HomeScreen() {
     if (fim || aposta === null || aposta <= 0 || bancaJogando) return;
     setBancaJogando(true);
     let totalBanca = 0;
-    let cartasLocal = [];
+    let cartasLocal: number[] = [];
+
     const chanceBlefe = Math.random();
     const querBlefar = chanceBlefe < 0.35; 
     let blefouComSucesso = false;
@@ -301,8 +231,10 @@ export default function HomeScreen() {
         blefouComSucesso = true;
         break;
       }
+      
       dispararReacao("PENSANDO...", "#fff"); 
       await new Promise(res => setTimeout(res, 2000));
+
       const carta = tirarCarta();
       totalBanca += carta;
       cartasLocal.push(carta);
@@ -314,10 +246,10 @@ export default function HomeScreen() {
     setFim(true);
     if (totalBanca > 7.5) { 
       setResultado('✅ BANCA ESTOUROU!'); 
-      await atualizarSaldoRemoto(fichas + aposta * 2); 
+      setFichas(f => f + aposta * 2); 
     } else if (totalBanca < jogador) {
       setResultado('✅ VITÓRIA!');
-      await atualizarSaldoRemoto(fichas + aposta * 2); 
+      setFichas(f => f + aposta * 2); 
     } else if (totalBanca === jogador) {
       setResultado('🏦 BANCA VENCE (EMPATE)!'); 
     } else {
@@ -326,36 +258,10 @@ export default function HomeScreen() {
     setBancaJogando(false);
   }
 
-  if (loading) return <View style={styles.container}><ActivityIndicator size="large" color="#ffd700" /></View>;
-
-  if (!user) {
-    return (
-      <ScrollView contentContainerStyle={styles.containerAuth}>
-        <Text style={styles.title}>MASTER 0 - REAL CASH</Text>
-        <View style={styles.boxAuth}>
-          <TextInput style={styles.inputAuth} placeholder="E-mail" value={email} onChangeText={setEmail} />
-          <TextInput style={styles.inputAuth} placeholder="Senha" secureTextEntry value={password} onChangeText={setPassword} />
-          {!isLogin && (
-            <>
-              <TextInput style={styles.inputAuth} placeholder="CPF" value={cpf} onChangeText={setCpf} />
-              <TextInput style={styles.inputAuth} placeholder="Endereço" value={endereco} onChangeText={setEndereco} />
-            </>
-          )}
-          <TouchableOpacity style={styles.btnAuth} onPress={handleAuth}>
-            {authLoading ? <ActivityIndicator color="#000" /> : <Text style={styles.btnAuthT}>{isLogin ? "LOGAR" : "CADASTRAR"}</Text>}
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setIsLogin(!isLogin)} style={{marginTop: 15}}>
-            <Text style={{color: '#ffd700'}}>{isLogin ? "Criar Conta VIP" : "Já sou VIP"}</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    );
-  }
-
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View style={styles.pill}><Text style={styles.pillT}>CARTEIRA: R$ {(fichas/10).toFixed(2)}</Text></View>
+        <View style={styles.pill}><Text style={styles.pillT}>CARTEIRA: ${fichas}</Text></View>
         <View style={[styles.pill, {borderColor: '#0f0'}]}><Text style={[styles.pillT, {color: '#0f0'}]}>APOSTA: ${aposta ?? 0}</Text></View>
       </View>
 
@@ -381,16 +287,13 @@ export default function HomeScreen() {
       <View style={styles.sidebar}>
         <ScrollView contentContainerStyle={{alignItems: 'center'}} showsVerticalScrollIndicator={false}>
           <TouchableOpacity style={styles.btnLojaTab} onPress={() => setMostrarLoja(!mostrarLoja)}>
-            <Text style={styles.btnLojaTabT}>{mostrarLoja ? "VOLTAR AO JOGO" : "🛒 COMPRAR FICHAS"}</Text>
+            <Text style={styles.btnLojaTabT}>{mostrarLoja ? "VOLTAR" : "🛒 LOJA"}</Text>
           </TouchableOpacity>
 
           {mostrarLoja ? (
             <View style={styles.lojaContainer}>
-              <Text style={styles.lojaTitle}>LOJA VIP PIX</Text>
-              <TouchableOpacity style={styles.btnItem} onPress={() => comprarCreditos(20)}><Text style={styles.btnItemT}>R$ 20,00 (200 Fichas)</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.btnItem} onPress={() => comprarCreditos(50)}><Text style={styles.btnItemT}>R$ 50,00 (500 Fichas)</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.btnItem} onPress={() => comprarCreditos(100)}><Text style={styles.btnItemT}>R$ 100,00 (1000 Fichas)</Text></TouchableOpacity>
-              <TouchableOpacity style={{marginTop: 30}} onPress={() => signOut(auth)}><Text style={{color:'#ff4444'}}>SAIR DA CONTA</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.btnItem} onPress={() => {setFichas(f=>f+1000); setMostrarLoja(false);}}><Text style={styles.btnItemT}>+ $1000</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.btnItem} onPress={() => {setFichas(f=>f+5000); setMostrarLoja(false);}}><Text style={styles.btnItemT}>+ $5000</Text></TouchableOpacity>
             </View>
           ) : (
             <>
@@ -402,13 +305,32 @@ export default function HomeScreen() {
                       <View style={styles.chipsRow}>
                         {[10, 50, 100].map(v => <TouchableOpacity key={v} style={styles.chip} onPress={() => validarEApostar(v)}><Text style={styles.chipT}>{v}</Text></TouchableOpacity>)}
                       </View>
-                      <TextInput style={styles.inputSide} keyboardType="numeric" value={valorLivre} onChangeText={handleApostaLivreChange} placeholder="$$$" />
+                      <TextInput 
+                        style={styles.input} 
+                        keyboardType="numeric" 
+                        value={valorLivre} 
+                        onChangeText={handleApostaLivreChange} 
+                        placeholder="$$$" 
+                      />
                       <TouchableOpacity style={styles.btnSide} onPress={() => validarEApostar(Number(valorLivre))}><Text style={styles.btnSideT}>APOSTAR</Text></TouchableOpacity>
                       <TouchableOpacity style={[styles.btnSide, {backgroundColor:'#ffd700', marginTop: 8}]} onPress={allIn}><Text style={styles.btnSideT}>ALL IN</Text></TouchableOpacity>
                     </View>
                   )}
                   {aposta !== null && !primeiraCartaDistribuida && (
                     <TouchableOpacity style={[styles.circle, {backgroundColor:'#ff8c00'}]} onPress={distribuirPrimeiraCarta}><Text style={styles.circleT}>JOGAR</Text></TouchableOpacity>
+                  )}
+                  {primeiraCartaDistribuida && !bloqueioCompra && (
+                    <View style={styles.blefeBox}>
+                      <TextInput 
+                        style={styles.input} 
+                        keyboardType="numeric" 
+                        value={valorAumento} 
+                        onChangeText={handleAumentoChange} 
+                        placeholder="VALOR" 
+                      />
+                      <TouchableOpacity style={[styles.btnSide, {backgroundColor:'#ff4d4d'}]} onPress={aumentarAposta}><Text style={styles.btnSideT}>AUMENTAR</Text></TouchableOpacity>
+                      <TouchableOpacity style={[styles.btnSide, {backgroundColor:'#333', marginTop: 8}]} onPress={allIn}><Text style={[styles.btnSideT, {color:'#fff'}]}>ALL IN</Text></TouchableOpacity>
+                    </View>
                   )}
                   {primeiraCartaDistribuida && (
                     <View style={{gap:12, marginTop: 10}}>
@@ -430,14 +352,6 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  // Estilos da Autenticação
-  containerAuth: { flexGrow: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', padding: 20 },
-  boxAuth: { width: '100%', backgroundColor: '#1a1a1a', padding: 20, borderRadius: 15, borderWidth: 1, borderColor: '#333' },
-  inputAuth: { backgroundColor: '#fff', padding: 12, borderRadius: 8, marginBottom: 10 },
-  btnAuth: { backgroundColor: '#ffd700', padding: 15, borderRadius: 8, alignItems: 'center' },
-  btnAuthT: { fontWeight: 'bold' },
-
-  // Estilos do Jogo
   container: { flex: 1, backgroundColor: '#000', flexDirection: 'row' },
   header: { position: 'absolute', top: 30, width: width-180, flexDirection: 'row', justifyContent: 'center', gap: 15, zIndex: 10 },
   pill: { backgroundColor: '#111', padding: 10, borderRadius: 20, borderWidth: 2, borderColor: '#d4af37', minWidth: 120, alignItems: 'center' },
@@ -457,21 +371,21 @@ const styles = StyleSheet.create({
   labelJogador: { color: '#ffd700', fontWeight: 'bold', fontSize: 16, marginTop: 10 },
   sidebar: { width: 180, backgroundColor: '#0a0a0a', padding: 10, paddingTop: 40, borderLeftWidth: 2, borderColor: '#d4af37' },
   btnLojaTab: { backgroundColor: '#ffd700', width: '100%', padding: 10, borderRadius: 8, marginBottom: 15 },
-  btnLojaTabT: { textAlign: 'center', color: '#000', fontWeight: 'bold', fontSize: 11 },
+  btnLojaTabT: { textAlign: 'center', color: '#000', fontWeight: 'bold' },
   lojaContainer: { width: '100%', alignItems: 'center', gap: 10 },
-  lojaTitle: { color: '#ffd700', fontWeight: 'bold', marginBottom: 10 },
-  btnItem: { width: '95%', backgroundColor: '#1a1a1a', padding: 15, borderRadius: 10, borderWidth: 1, borderColor: '#ffd700' },
-  btnItemT: { color: '#ffd700', textAlign: 'center', fontWeight: 'bold', fontSize: 11 },
+  btnItem: { width: '90%', backgroundColor: '#1a1a1a', padding: 15, borderRadius: 10, borderWidth: 1, borderColor: '#ffd700' },
+  btnItemT: { color: '#ffd700', textAlign: 'center', fontWeight: 'bold' },
   sideBlock: { width: '100%', alignItems: 'center', marginBottom: 20 },
   sideTitle: { color: '#d4af37', fontSize: 12, fontWeight: 'bold', marginBottom: 10 },
   chipsRow: { flexDirection: 'row', gap: 5, marginBottom: 10 },
   chip: { width: 42, height: 42, borderRadius: 21, borderWidth: 2, borderColor: '#d4af37', justifyContent: 'center', alignItems: 'center' },
   chipT: { color: '#d4af37', fontWeight: 'bold' },
-  inputSide: { backgroundColor: '#fff', width: '90%', height: 40, borderRadius: 8, textAlign: 'center', fontWeight: 'bold', marginBottom: 10, color: '#000' },
+  input: { backgroundColor: '#fff', width: '90%', height: 40, borderRadius: 8, textAlign: 'center', fontWeight: 'bold', marginBottom: 10, color: '#000' },
   btnSide: { backgroundColor: '#d4af37', padding: 12, borderRadius: 8, width: '90%' },
   btnSideT: { textAlign: 'center', fontWeight: 'bold', color: '#000' },
   circle: { width: 100, height: 100, borderRadius: 50, borderWidth: 4, borderColor: '#fff', justifyContent: 'center', alignItems: 'center', alignSelf: 'center' },
   circleT: { color: '#fff', fontWeight: 'bold', textAlign: 'center', fontSize: 12 },
+  blefeBox: { width: '100%', backgroundColor: 'rgba(255,0,0,0.1)', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#ff4d4d', marginVertical: 10 },
   jackpotContainer: { position: 'absolute', bottom: 30, left: 20, zIndex: 100 },
   jackpotBox: { backgroundColor: '#111', padding: 15, borderRadius: 20, borderWidth: 3, borderColor: '#ffd700', alignItems: 'center' },
   jackpotTitle: { color: '#ff4d4d', fontSize: 12, fontWeight: 'bold' },
