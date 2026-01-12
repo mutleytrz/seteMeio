@@ -14,14 +14,12 @@ let serviceAccount;
 
 if (process.env.FIREBASE_CONFIG) {
     try {
-        // Na Render, lemos a variável de ambiente que você configurou
         serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
     } catch (err) {
         console.error("Erro ao processar FIREBASE_CONFIG:", err);
     }
 } else {
     try {
-        // No seu PC local, ele tenta usar o arquivo
         serviceAccount = require('./chave-firebase.json');
     } catch (err) {
         console.warn("Aviso: Rodando sem chave local (esperado na Render).");
@@ -44,13 +42,13 @@ if (serviceAccount) {
 // 1. Serve os arquivos estáticos da pasta 'dist'
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// 2. CORREÇÃO EXPRESS 5: Rota curinga corrigida de '*' para '/(.*)'
-// Isso evita o erro "PathError: Missing parameter name"
-app.get('/(.*)', (req, res) => {
+// 2. SOLUÇÃO DEFINITIVA PARA EXPRESS 5:
+// Usamos o parâmetro ':splat' para capturar tudo sem dar erro de sintaxe
+app.get('/:splat*', (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-// --- INICIALIZAÇÃO DO SERVIDOR ---
+// --- INICIALIZAÇÃO DO SERVIDOR (ÚNICA) ---
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`🚀 SERVIDOR MASTER 0 NO AR!`);
