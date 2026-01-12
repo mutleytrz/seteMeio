@@ -2,12 +2,16 @@ const express = require('express');
 const mercadopago = require('mercadopago');
 const admin = require('firebase-admin');
 const cors = require('cors');
+const path = require('path'); // ADICIONADO: Necessário para caminhos de arquivos
 const app = express();
 
 app.use(express.json());
 app.use(cors());
 
-// Lendo a chave que aparece na sua imagem
+// Serve os arquivos do seu jogo (Frontend) da pasta 'dist'
+app.use(express.static(path.join(__dirname, 'dist')));
+
+// Lendo a chave do Firebase
 const serviceAccount = require("./chave-firebase.json");
 
 admin.initializeApp({
@@ -15,7 +19,7 @@ admin.initializeApp({
 });
 const db = admin.firestore();
 
-// Master 0: Substitua pelo seu Access Token de PRODUÇÃO do Mercado Pago
+// Master 0: Access Token Mercado Pago
 mercadopago.configurations.setAccessToken("APP_USR-cc37a432-6364-43d9-a377-d08c0c36eae2");
 
 // Rota para criar o pagamento
@@ -30,11 +34,11 @@ app.post('/checkout', async (req, res) => {
       }],
       metadata: { user_id: userId, valor_fichas: amount * 10 },
       payment_methods: {
-        excluded_payment_types: [{ id: "ticket" }], // Sem boleto
+        excluded_payment_types: [{ id: "ticket" }],
         installments: 1
       },
-      // URL que o Render vai te dar depois para confirmar o pagamento
-      notification_url: "SUA_URL_DO_RENDER_AQUI/webhook" 
+      // URL do seu servidor na Render
+      notification_url: "https://setemeio.onrender.com/webhook" 
     });
     res.json({ init_point: response.body.init_point });
   } catch (error) {
@@ -42,7 +46,7 @@ app.post('/checkout', async (req, res) => {
   }
 });
 
-// Rota que recebe o aviso do banco (Webhook)
+// Rota do Webhook
 app.post('/webhook', async (req, res) => {
   const { query } = req;
   const topic = query.topic || query.type;
@@ -50,7 +54,7 @@ app.post('/webhook', async (req, res) => {
   if (topic === 'payment') {
     const paymentId = query.id || query['data.id'];
     try {
-      const paymentInfo = await mercadopago.payment.findById(paymentId);
+      const paymentInfo = await mercadopago.payment.get(paymentId);
       if (paymentInfo.body.status === 'approved') {
         const uid = paymentInfo.body.metadata.user_id;
         const fichasGanhas = paymentInfo.body.metadata.valor_fichas;
@@ -66,5 +70,10 @@ app.post('/webhook', async (req, res) => {
   res.sendStatus(200);
 });
 
-const PORT = process.env.PORT || 3000;
+// ADICIONADO: Rota curinga para garantir que o site carregue em qualquer página
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Servidor Master 0 online na porta ${PORT}`));
