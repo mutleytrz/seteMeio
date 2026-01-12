@@ -13,7 +13,7 @@ const firebaseConfig = {
   storageBucket: "master0casino.firebasestorage.app",
   messagingSenderId: "250319792354",
   appId: "1:250319792354:web:75afc1b52b2f27a8c756bb",
-  measurementId: "G-MSVWXVFX7B"
+  measurementId: "G-MSVWVWFX7B"
 };
 
 if (!getApps().length) initializeApp(firebaseConfig);
@@ -22,7 +22,6 @@ const functions = getFunctions();
 
 const { width, height } = Dimensions.get('window');
 
-// --- COMPONENTE CARTA ---
 const CartaMaster = ({ valor, isOculta = false }: any) => {
   const anim = useRef(new Animated.Value(0)).current;
   const floatAnim = useRef(new Animated.Value(0)).current;
@@ -58,7 +57,6 @@ const CartaMaster = ({ valor, isOculta = false }: any) => {
   );
 };
 
-// --- COMPONENTE JACKPOT ---
 const JackpotDisplay = ({ valor, progresso }: any) => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   useEffect(() => {
@@ -101,6 +99,7 @@ export default function HomeScreen() {
   const [jackpot, setJackpot] = useState(100.00);
   const [progressoJackpot, setProgressoJackpot] = useState(1);
   const [mostrarLoja, setMostrarLoja] = useState(false);
+  const [valorCompraPersonalizada, setValorCompraPersonalizada] = useState('');
 
   const monteRef = useRef<number[]>([]);
   const userUID = "Master0_Player_Official"; 
@@ -114,12 +113,19 @@ export default function HomeScreen() {
     return () => unsub();
   }, []);
 
-  const irParaPagamento = async (valor: number) => {
+  const irParaPagamento = async (valorFichas: number) => {
+    if (!valorFichas || valorFichas <= 0) {
+      Alert.alert("Erro", "Insira um valor válido.");
+      return;
+    }
     const criarCheckout = httpsCallable(functions, 'criarCheckout');
     try {
-      const resp: any = await criarCheckout({ amount: valor, userId: userUID });
+      dispararReacao("GERANDO PIX...", "#ffd700");
+      const resp: any = await criarCheckout({ amount: valorFichas, userId: userUID });
       if (resp.data.init_point) Linking.openURL(resp.data.init_point);
-    } catch (err) { Alert.alert("Loja", "Erro ao conectar com o processador de pagamentos."); }
+    } catch (err) { 
+      Alert.alert("Loja", "Erro ao conectar com o financeiro."); 
+    }
   };
 
   const dispararReacao = (msg: string, cor: string = '#ffd700') => {
@@ -150,7 +156,7 @@ export default function HomeScreen() {
     updateDoc(doc(db, "usuarios", userUID), { saldo: increment(-v) });
     setAposta((aposta || 0) + v);
     setValorAumento('');
-    setBloqueioCompra(true); 
+    setBloqueioCompra(true);
     dispararReacao("BLEFE!", '#ff4d4d');
   }
 
@@ -200,7 +206,11 @@ export default function HomeScreen() {
 
       <View style={styles.tableArea}>
         <View style={styles.felt}>
-          {reacao && <View style={styles.reacaoAbs}><Text style={[styles.reacaoT, {color: reacao.cor}]}>{reacao.msg}</Text></View>}
+          {reacao && (
+            <View style={styles.reacaoAbs}>
+              <Text style={[styles.reacaoT, {color: reacao.cor}]}>{reacao.msg}</Text>
+            </View>
+          )}
           <View style={styles.cardRow}>
             {primeiraCartaDistribuida && maoBanca.length === 0 && !fim ? <CartaMaster isOculta={true} /> : maoBanca.map((c, i) => <CartaMaster key={i} valor={c} />)}
           </View>
@@ -219,16 +229,27 @@ export default function HomeScreen() {
           </TouchableOpacity>
 
           {mostrarLoja ? (
-            <View style={styles.lojaBox}>
-              {/* ATUALIZAÇÃO DA LOJA MASTER 0 */}
-              <TouchableOpacity style={styles.itemLoja} onPress={() => irParaPagamento(1000)}>
-                <Text style={styles.itemLojaT}>COMPRAR $1.000</Text>
-                <Text style={styles.itemLojaSub}>R$ 10,00</Text>
+            <View style={styles.lojaContainer}>
+              <Text style={styles.lojaTitle}>DEPÓSITO RÁPIDO</Text>
+              <TouchableOpacity style={styles.btnItemLoja} onPress={() => irParaPagamento(1000)}>
+                <Text style={styles.btnItemLojaT}>$ 1.000</Text>
+                <Text style={styles.btnItemLojaSub}>R$ 10,00</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.itemLoja} onPress={() => irParaPagamento(5000)}>
-                <Text style={styles.itemLojaT}>COMPRAR $5.000</Text>
-                <Text style={styles.itemLojaSub}>R$ 40,00</Text>
+              <TouchableOpacity style={styles.btnItemLoja} onPress={() => irParaPagamento(5000)}>
+                <Text style={styles.btnItemLojaT}>$ 5.000</Text>
+                <Text style={styles.btnItemLojaSub}>R$ 40,00</Text>
               </TouchableOpacity>
+              <View style={styles.compraLivreBox}>
+                <Text style={styles.compraLivreLabel}>VALOR LIVRE ($)</Text>
+                <TextInput 
+                  style={styles.inputLoja} keyboardType="numeric" 
+                  value={valorCompraPersonalizada} onChangeText={setValorCompraPersonalizada}
+                  placeholder="Ex: 2500" placeholderTextColor="#666"
+                />
+                <TouchableOpacity style={styles.btnComprarLivre} onPress={() => irParaPagamento(Number(valorCompraPersonalizada))}>
+                  <Text style={styles.btnComprarLivreT}>COMPRAR</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ) : (
             <View style={{width: '100%', alignItems: 'center'}}>
@@ -288,10 +309,16 @@ const styles = StyleSheet.create({
   sidebar: { width: 180, backgroundColor: '#0a0a0a', borderLeftWidth: 2, borderColor: '#d4af37', paddingTop: 60 },
   btnLoja: { backgroundColor: '#ffd700', padding: 12, borderRadius: 10, marginBottom: 30, width: '85%' },
   btnLojaT: { textAlign: 'center', fontWeight: 'bold', color: '#000' },
-  lojaBox: { width: '100%', alignItems: 'center', gap: 12 },
-  itemLoja: { backgroundColor: '#1a1a1a', padding: 15, borderRadius: 10, borderWidth: 1, borderColor: '#ffd700', width: '90%', alignItems: 'center' },
-  itemLojaT: { color: '#ffd700', fontWeight: 'bold', fontSize: 14 },
-  itemLojaSub: { color: '#fff', fontSize: 12, marginTop: 4 },
+  lojaContainer: { width: '100%', alignItems: 'center', gap: 12 },
+  lojaTitle: { color: '#fff', fontWeight: 'bold', fontSize: 12, marginBottom: 5 },
+  btnItemLoja: { backgroundColor: '#111', width: '90%', padding: 15, borderRadius: 10, borderWidth: 1, borderColor: '#ffd700', alignItems: 'center' },
+  btnItemLojaT: { color: '#ffd700', fontWeight: 'bold', fontSize: 16 },
+  btnItemLojaSub: { color: '#0f0', fontSize: 11, marginTop: 2 },
+  compraLivreBox: { width: '90%', marginTop: 20, backgroundColor: '#1a1a1a', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#333' },
+  compraLivreLabel: { color: '#aaa', fontSize: 10, textAlign: 'center', marginBottom: 5 },
+  inputLoja: { backgroundColor: '#fff', borderRadius: 5, height: 35, textAlign: 'center', color: '#000', fontWeight: 'bold' },
+  btnComprarLivre: { backgroundColor: '#28a745', marginTop: 10, padding: 10, borderRadius: 5 },
+  btnComprarLivreT: { color: '#fff', textAlign: 'center', fontWeight: 'bold', fontSize: 12 },
   controlesAposta: { width: '100%', alignItems: 'center', gap: 10 },
   chipsRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   chip: { backgroundColor: '#222', width: 45, height: 45, borderRadius: 22.5, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#ffd700' },
