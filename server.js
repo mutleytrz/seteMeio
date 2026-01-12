@@ -5,7 +5,7 @@ const admin = require('firebase-admin');
 
 const app = express();
 
-// Middlewares
+// Middlewares básicos
 app.use(cors());
 app.use(express.json());
 
@@ -39,16 +39,17 @@ if (serviceAccount) {
 
 // --- SERVINDO O FRONTEND (EXPO WEB) ---
 
-// 1. Serve os arquivos estáticos da pasta 'dist'
+// 1. Primeiro, serve os arquivos reais da pasta 'dist' (js, css, imagens)
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// 2. SOLUÇÃO DEFINITIVA PARA EXPRESS 5:
-// Usamos o parâmetro ':splat' para capturar tudo sem dar erro de sintaxe
-app.get('/:splat*', (req, res) => {
+// 2. SOLUÇÃO À PROVA DE ERROS PARA EXPRESS 5:
+// Em vez de usar strings complexas como '/(.*)' ou ':splat*', 
+// usamos um middleware simples que entrega o index.html para qualquer rota.
+app.use((req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-// --- INICIALIZAÇÃO DO SERVIDOR (ÚNICA) ---
+// --- INICIALIZAÇÃO DO SERVIDOR ---
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`🚀 SERVIDOR MASTER 0 NO AR!`);
